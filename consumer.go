@@ -12,6 +12,8 @@ import (
 	"github.com/xiaojiaoyu100/rocketmq-client-go"
 	"github.com/xiaojiaoyu100/rocketmq-client-go/consumer"
 	"github.com/xiaojiaoyu100/rocketmq-client-go/primitive"
+
+	"github.com/xiaojiaoyu100/aliyun-rocket-mq/log"
 )
 
 type Handler func(*M) error
@@ -199,7 +201,7 @@ func (c *Consumer) processMessage(ctx context.Context, messages ...*primitive.Me
 		if strings.HasPrefix(topic, _RetryPrefix) {
 			topic = msg.GetProperty(_RetryOriginTopic)
 			if topic == "" {
-				Logger.Errorf("get message - %v without topic - %v", msg, topic)
+				log.Inst().Errorf("get message - %v without topic - %v", msg, topic)
 				continue
 			}
 		}
@@ -211,6 +213,7 @@ func (c *Consumer) processMessage(ctx context.Context, messages ...*primitive.Me
 		m := &M{
 			Topic: topic,
 			Tag:   tag,
+			MsgId: msg.MsgId,
 			Key:   msg.GetKeys(),
 			Body:  msg.Body,
 		}
@@ -245,7 +248,7 @@ func (c *Consumer) Stop() error {
 }
 
 func DefaultErrorCallback(err error, msg *primitive.MessageExt) {
-	Logger.WithFields(logrus.Fields{
+	log.Inst().WithFields(logrus.Fields{
 		"topic":          msg.Topic,
 		"tag":            msg.GetTags(),
 		"messageid":      msg.MsgId,

@@ -12,6 +12,8 @@ import (
 	"github.com/xiaojiaoyu100/rocketmq-client-go"
 	"github.com/xiaojiaoyu100/rocketmq-client-go/primitive"
 	"github.com/xiaojiaoyu100/rocketmq-client-go/producer"
+
+	"github.com/xiaojiaoyu100/aliyun-rocket-mq/log"
 )
 
 type Producer struct {
@@ -159,9 +161,16 @@ func (p *Producer) Send(topic string, body []byte, setter ...MessageSetter) Send
 	msg := CreateMessage(topic, body, setter...)
 
 	if p.autoCreateTopic() {
-		_ = p.createTopicNotExist(topic)
+		if err := p.createTopicNotExist(topic); err != nil {
+			log.Inst().Errorf("create topic error=%v\n", topic)
+		}
 	}
 	sendResult, err := p.producer.SendSync(context.Background(), msg)
+
+	// 如果是topic 不存在则删除本地缓存
+	if isTopicNotExistError(err) {
+		p.topicMap.Delete(topic)
+	}
 	return SendResult{
 		Result: sendResult,
 		Err:    err,
@@ -197,8 +206,13 @@ func (p *Producer) RawProducer() *rocketmq.Producer {
 
 func defaultSendAsyncCallback(ctx context.Context, result *primitive.SendResult, err error) {
 	if err != nil {
-		Logger.Errorf("send result = %v, error = %v", result, err)
+		log.Inst().Errorf("send result = %v, error = %v", result, err)
 	} else {
-		Logger.Infof("send result = %v", result)
+		log.Inst().Infof("send result = %v", result)
 	}
+}
+
+func isTopicNotExistError(err error) bool {
+	text := fmt.Sprintf("%s", err)
+	return strings.Contains(text, "topic") && strings.Contains(text, "not exist")
 }

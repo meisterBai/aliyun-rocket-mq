@@ -41,6 +41,6 @@ type M struct {
 	Topic string
 	Tag   string
 	Key   string
+	MsgId string
 	Body  []byte
 }
-
