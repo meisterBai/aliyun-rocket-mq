@@ -177,7 +177,6 @@ func (c *OnsClient) ListConsumerGroupSub(group string) ([]*Sub, error) {
 		return nil, err
 	}
 
-	fmt.Printf("response = %v\n", response)
 	subscriptions := response.Data.SubscriptionDataList.SubscriptionDataListItem
 	res := make([]*Sub, 0, len(subscriptions))
 	for _, s := range subscriptions {

@@ -92,12 +92,12 @@ func (p *Producer) syncTopic() error {
 	return nil
 }
 
-func (p *Producer) createTopicNotExist(topic string) error {
+func (p *Producer) createTopicNotExist(topic string, msgType int) error {
 	if _, ok := p.topicMap.Load(topic); ok {
 		return nil
 	}
 
-	err := p.onsClient.CreateTopic(topic, topic, NormalMessageType)
+	err := p.onsClient.CreateTopic(topic, topic, msgType)
 	if err != nil {
 		_ = p.syncTopic()
 		return err
@@ -161,13 +161,40 @@ func (p *Producer) Send(topic string, body []byte, setter ...MessageSetter) Send
 	msg := CreateMessage(topic, body, setter...)
 
 	if p.autoCreateTopic() {
-		if err := p.createTopicNotExist(topic); err != nil {
-			log.Inst().Errorf("create topic error=%v\n", topic)
+		if err := p.createTopicNotExist(topic, NormalMessageType); err != nil {
+			return SendResult{
+				Result: nil,
+				Err:    err,
+			}
 		}
 	}
 	sendResult, err := p.producer.SendSync(context.Background(), msg)
 
 	// 如果是topic 不存在则删除本地缓存
+	if isTopicNotExistError(err) {
+		p.topicMap.Delete(topic)
+	}
+	return SendResult{
+		Result: sendResult,
+		Err:    err,
+	}
+}
+
+// 发送分区顺序消息, shardingKey是必须的
+func (p *Producer) SendOrderly(topic string, body []byte, shardingKey string, setter ...MessageSetter) SendResult {
+	msg := CreateMessage(topic, body, setter...)
+	msg.WithShardingKey(shardingKey)
+
+	if p.autoCreateTopic() {
+		if err := p.createTopicNotExist(topic, PartitionOrderMessageType); err != nil {
+			return SendResult{
+				Result: nil,
+				Err:    err,
+			}
+		}
+	}
+	sendResult, err := p.producer.SendSync(context.Background(), msg)
+
 	if isTopicNotExistError(err) {
 		p.topicMap.Delete(topic)
 	}
@@ -194,7 +221,7 @@ func (p *Producer) SendAsync(topic string, body []byte, callback func(ctx contex
 	}
 
 	if p.autoCreateTopic() {
-		_ = p.createTopicNotExist(topic)
+		_ = p.createTopicNotExist(topic, NormalMessageType)
 	}
 	err := p.producer.SendAsync(context.Background(), callbackFn, msg)
 	return err
